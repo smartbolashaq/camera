@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Трансляция цеха</title>
+
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  НАСТРОЙКА. Меняй только блок НАСТРОЙКА в скрипте ниже и текст в теле
+  страницы там, где написано ЗАМЕНИТЬ. Больше ничего трогать не нужно.
+  ═══════════════════════════════════════════════════════════════════
+-->
+
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --line: #262b35;
+    --text: #e6e8ec;
+    --muted: #9aa1ad;
+    --accent: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 24px 16px 48px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  header {
+    display: flex; align-items: baseline; flex-wrap: wrap;
+    gap: 12px; margin-bottom: 8px;
+  }
+  h1 { font-size: 1.5rem; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  .live {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--accent);
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    border-radius: 999px; padding: 4px 11px;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.35 } }
+  .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 20px; }
+  .player {
+    position: relative; aspect-ratio: 16 / 9;
+    background: #000;
+    border: 1px solid var(--line);
+    border-radius: 12px; overflow: hidden;
+  }
+  .player iframe {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; border: 0;
+  }
+  .note {
+    margin-top: 18px; padding: 14px 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--muted); font-size: 0.9rem;
+  }
+  .note b { color: var(--text); font-weight: 600; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 0.82rem; }
+  @media (max-width: 520px) {
+    h1 { font-size: 1.25rem; }
+    body { padding: 16px 16px 40px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <!-- ЗАМЕНИТЬ: название -->
+    <h1>Цех, прямая трансляция</h1>
+    <span class="live"><span class="dot"></span>В эфире</span>
+  </header>
+
+  <!-- ЗАМЕНИТЬ: подпись, или удали строку целиком -->
+  <p class="sub">Камера работает круглосуточно. Задержка около 20 секунд.</p>
+
+  <div class="player" id="player"></div>
+
+  <div class="note" id="hint"></div>
+
+  <footer>
+    <!-- ЗАМЕНИТЬ или удали -->
+    Smart Bolashaq
+  </footer>
+
+</div>
+
+<script>
+/* ═══════════════════════ НАСТРОЙКА ═══════════════════════
+ *
+ * Два режима. Выбери один.
+ *
+ * MODE = "channel"  ← рекомендую
+ *   Показывает то, что сейчас идёт на канале. Ссылка на эту страницу
+ *   не меняется НИКОГДА, даже если трансляция обрывалась и YouTube
+ *   создал её заново. Требует, чтобы доступ к трансляции был
+ *   «Открытый». В ID вставь id канала: YouTube Studio → Настройки →
+ *   Канал → Расширенные настройки → «Идентификатор канала».
+ *   Начинается на UC, например UCabc123def456ghi789jkl.
+ *
+ * MODE = "video"
+ *   Показывает одну конкретную трансляцию. Работает с доступом
+ *   «по ссылке», то есть приватнее. Но если трансляция оборвётся
+ *   надолго, YouTube создаст новую, и сюда придётся вписать новый id.
+ *   В ID вставь часть ссылки после v=, например dQw4w9WgXcQ.
+ */
+
+// Выбран режим "video", потому что трансляция с доступом по ссылке.
+// Если трансляция оборвётся надолго и YouTube создаст новую, придёт
+// уведомление в Телеграм, и тогда надо вписать сюда новый id.
+const MODE = "video";
+const ID   = "ВСТАВЬ_СЮДА_ID";
+
+/* ═════════════════ ниже менять не нужно ═════════════════ */
+
+(function () {
+  const player = document.getElementById("player");
+  const hint = document.getElementById("hint");
+
+  if (!ID || ID === "ВСТАВЬ_СЮДА_ID") {
+    player.innerHTML =
+      '<div style="position:absolute;inset:0;display:grid;place-items:center;' +
+      'padding:24px;text-align:center;color:#9aa1ad;font-size:0.95rem">' +
+      'Страница ещё не настроена. Открой index.html, найди блок НАСТРОЙКА ' +
+      'и впиши свой id.</div>';
+    hint.innerHTML = "<b>Осталось вписать id.</b> Инструкция прямо в коде страницы, в блоке НАСТРОЙКА.";
+    return;
+  }
+
+  const params = "autoplay=1&mute=1&rel=0&playsinline=1";
+  const src = MODE === "channel"
+    ? "https://www.youtube.com/embed/live_stream?channel=" + encodeURIComponent(ID) + "&" + params
+    : "https://www.youtube.com/embed/" + encodeURIComponent(ID) + "?" + params;
+
+  const frame = document.createElement("iframe");
+  frame.src = src;
+  frame.title = "Трансляция цеха";
+  frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+  frame.allowFullscreen = true;
+  player.appendChild(frame);
+
+  hint.textContent = MODE === "channel"
+    ? "Если картинки нет, трансляция временно остановлена. Она поднимается сама, обнови страницу через пару минут."
+    : "Если картинки нет, трансляция временно остановлена или была перезапущена. Обнови страницу через пару минут.";
+})();
+</script>
+</body>
+</html>
