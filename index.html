@@ -7,8 +7,9 @@
 
 <!--
   ═══════════════════════════════════════════════════════════════════
-  НАСТРОЙКА. Меняй только блок НАСТРОЙКА в скрипте ниже и текст в теле
-  страницы там, где написано ЗАМЕНИТЬ. Больше ничего трогать не нужно.
+  id трансляции больше НЕ вписывается в этот файл.
+  Он лежит рядом, в stream.json, и меняется командой /id в телеграм-боте.
+  Здесь меняют только название и подпись, они помечены словом ЗАМЕНИТЬ.
   ═══════════════════════════════════════════════════════════════════
 -->
 
@@ -57,9 +58,12 @@
     border: 1px solid var(--line);
     border-radius: 12px; overflow: hidden;
   }
-  .player iframe {
+  .player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .placeholder {
     position: absolute; inset: 0;
-    width: 100%; height: 100%; border: 0;
+    display: grid; place-items: center;
+    padding: 24px; text-align: center;
+    color: var(--muted); font-size: 0.95rem;
   }
   .note {
     margin-top: 18px; padding: 14px 16px;
@@ -68,7 +72,6 @@
     border-radius: 10px;
     color: var(--muted); font-size: 0.9rem;
   }
-  .note b { color: var(--text); font-weight: 600; }
   footer { margin-top: 28px; color: var(--muted); font-size: 0.82rem; }
   @media (max-width: 520px) {
     h1 { font-size: 1.25rem; }
@@ -88,9 +91,13 @@
   <!-- ЗАМЕНИТЬ: подпись, или удали строку целиком -->
   <p class="sub">Камера работает круглосуточно. Задержка около 20 секунд.</p>
 
-  <div class="player" id="player"></div>
+  <div class="player" id="player">
+    <div class="placeholder">Загружаю трансляцию…</div>
+  </div>
 
-  <div class="note" id="hint"></div>
+  <div class="note" id="hint">
+    Если картинки нет, трансляция временно остановлена. Обнови страницу через пару минут.
+  </div>
 
   <footer>
     <!-- ЗАМЕНИТЬ или удали -->
@@ -102,60 +109,66 @@
 <script>
 /* ═══════════════════════ НАСТРОЙКА ═══════════════════════
  *
- * Два режима. Выбери один.
+ * Обычно здесь ничего менять не надо.
  *
- * MODE = "channel"  ← рекомендую
- *   Показывает то, что сейчас идёт на канале. Ссылка на эту страницу
- *   не меняется НИКОГДА, даже если трансляция обрывалась и YouTube
- *   создал её заново. Требует, чтобы доступ к трансляции был
- *   «Открытый». В ID вставь id канала: YouTube Studio → Настройки →
- *   Канал → Расширенные настройки → «Идентификатор канала».
- *   Начинается на UC, например UCabc123def456ghi789jkl.
+ * id трансляции страница берёт из файла stream.json, который лежит
+ * рядом. Его обновляет телеграм-бот командой /id, поэтому при смене
+ * трансляции код трогать не нужно.
  *
- * MODE = "video"
- *   Показывает одну конкретную трансляцию. Работает с доступом
- *   «по ссылке», то есть приватнее. Но если трансляция оборвётся
- *   надолго, YouTube создаст новую, и сюда придётся вписать новый id.
- *   В ID вставь часть ссылки после v=, например dQw4w9WgXcQ.
+ * FALLBACK_ID — запасной id на случай, если stream.json не прочитался.
+ * Впиши туда текущий id один раз, дальше он не понадобится.
  */
 
-// Выбран режим "video", потому что трансляция с доступом по ссылке.
-// Если трансляция оборвётся надолго и YouTube создаст новую, придёт
-// уведомление в Телеграм, и тогда надо вписать сюда новый id.
-const MODE = "video";
-const ID   = "m0qHaSrxgm0";
+const SOURCE      = "stream.json";
+const FALLBACK_ID = "";
 
 /* ═════════════════ ниже менять не нужно ═════════════════ */
 
-(function () {
+(async function () {
   const player = document.getElementById("player");
   const hint = document.getElementById("hint");
 
-  if (!ID || ID === "ВСТАВЬ_СЮДА_ID") {
+  let videoId = FALLBACK_ID;
+  let updated = null;
+
+  try {
+    const resp = await fetch(SOURCE + "?t=" + Date.now(), { cache: "no-store" });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && typeof data.videoId === "string" && /^[A-Za-z0-9_-]{11}$/.test(data.videoId)) {
+        videoId = data.videoId;
+        updated = data.updated || null;
+      }
+    }
+  } catch (err) {
+    // stream.json недоступен, останемся на запасном id
+  }
+
+  if (!videoId) {
     player.innerHTML =
-      '<div style="position:absolute;inset:0;display:grid;place-items:center;' +
-      'padding:24px;text-align:center;color:#9aa1ad;font-size:0.95rem">' +
-      'Страница ещё не настроена. Открой index.html, найди блок НАСТРОЙКА ' +
-      'и впиши свой id.</div>';
-    hint.innerHTML = "<b>Осталось вписать id.</b> Инструкция прямо в коде страницы, в блоке НАСТРОЙКА.";
+      '<div class="placeholder">Трансляция пока не настроена.<br>' +
+      'Отправь боту команду /id со ссылкой на трансляцию.</div>';
+    hint.textContent = "Как только id будет задан, картинка появится здесь автоматически.";
     return;
   }
 
-  const params = "autoplay=1&mute=1&rel=0&playsinline=1";
-  const src = MODE === "channel"
-    ? "https://www.youtube.com/embed/live_stream?channel=" + encodeURIComponent(ID) + "&" + params
-    : "https://www.youtube.com/embed/" + encodeURIComponent(ID) + "?" + params;
-
+  player.innerHTML = "";
   const frame = document.createElement("iframe");
-  frame.src = src;
+  frame.src = "https://www.youtube.com/embed/" + encodeURIComponent(videoId) +
+              "?autoplay=1&mute=1&rel=0&playsinline=1";
   frame.title = "Трансляция цеха";
   frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
   frame.allowFullscreen = true;
   player.appendChild(frame);
 
-  hint.textContent = MODE === "channel"
-    ? "Если картинки нет, трансляция временно остановлена. Она поднимается сама, обнови страницу через пару минут."
-    : "Если картинки нет, трансляция временно остановлена или была перезапущена. Обнови страницу через пару минут.";
+  if (updated) {
+    const when = new Date(updated);
+    if (!isNaN(when)) {
+      hint.textContent =
+        "Если картинки нет, трансляция временно остановлена. Обнови страницу через пару минут. " +
+        "Ссылка обновлялась " + when.toLocaleString("ru-RU") + ".";
+    }
+  }
 })();
 </script>
 </body>
